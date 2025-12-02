@@ -46,7 +46,6 @@
 #include <OmniRobot.h>
 
 #define BASIC_PERIOD 100
-#define USE_QTGUI
 
 using TuplePrx = std::tuple<RoboCompCamera360RGB::Camera360RGBPrxPtr,RoboCompLidar3D::Lidar3DPrxPtr,RoboCompOmniRobot::OmniRobotPrxPtr>;
 

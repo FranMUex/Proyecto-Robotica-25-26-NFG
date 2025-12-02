@@ -18,11 +18,11 @@
  */
 
 
-/** \mainpage RoboComp::localiser
+/** \mainpage RoboComp::finaliser
  *
  * \section intro_sec Introduction
  *
- * The localiser component...
+ * The finaliser component...
  *
  * \section interface_sec Interface
  *
@@ -34,7 +34,7 @@
  * ...
  *
  * \subsection install2_ssec Compile and install
- * cd localiser
+ * cd finaliser
  * <br>
  * cmake . && make
  * <br>
@@ -52,7 +52,7 @@
  *
  * \subsection execution_ssec Execution
  *
- * Just: "${PATH_TO_BINARY}/localiser --Ice.Config=${PATH_TO_CONFIG_FILE}"
+ * Just: "${PATH_TO_BINARY}/finaliser --Ice.Config=${PATH_TO_CONFIG_FILE}"
  *
  * \subsection running_ssec Once running
  *
@@ -87,8 +87,8 @@
 
 #define USE_QTGUI
 
-#define PROGRAM_NAME    "localiser"
-#define SERVER_FULL_NAME   "RoboComp localiser::localiser"
+#define PROGRAM_NAME    "finaliser"
+#define SERVER_FULL_NAME   "RoboComp finaliser::finaliser"
 
 
 template <typename ProxyType, typename ProxyPointer>
@@ -169,10 +169,10 @@ void subscribe( const Ice::CommunicatorPtr& communicator,
 }
 
 
-class localiser : public Ice::Application
+class finaliser : public Ice::Application
 {
 public:
-	localiser (QString configFile, QString prfx, bool startup_check) { 
+	finaliser (QString configFile, QString prfx, bool startup_check) { 
 		this->configFile = configFile.toStdString();
 		this->prefix = prfx.toStdString();
 		this->startup_check_flag=startup_check; 
@@ -193,7 +193,7 @@ public:
 	virtual int run(int, char*[]);
 };
 
-Ice::InitializationData localiser::getInitializationDataIce(){
+Ice::InitializationData finaliser::getInitializationDataIce(){
         Ice::InitializationData initData;
         initData.properties = Ice::createProperties();
         initData.properties->setProperty("Ice.Warn.Connections", this->configLoader.get<std::string>("Ice.Warn.Connections"));
@@ -203,14 +203,14 @@ Ice::InitializationData localiser::getInitializationDataIce(){
 		return initData;
 }
 
-void localiser::initialize()
+void finaliser::initialize()
 {
     this->configLoader.load(this->configFile);
 	this->configLoader.printConfig();
 	std::cout<<std::endl;
 }
 
-int localiser::run(int argc, char* argv[])
+int finaliser::run(int argc, char* argv[])
 {
 #ifdef USE_QTGUI
 	QApplication a(argc, argv);  // GUI application
@@ -367,7 +367,7 @@ int main(int argc, char* argv[])
 		}
 
 	}
-	localiser app(configFile, prefix, startup_check_flag);
+	finaliser app(configFile, prefix, startup_check_flag);
 
 	return app.main(argc, argv, app.getInitializationDataIce());
 }

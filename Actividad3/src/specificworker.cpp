@@ -23,6 +23,8 @@
 #include <time.h>
 #include <cppitertools/enumerate.hpp>
 
+
+
 SpecificWorker::SpecificWorker(const ConfigLoader& configLoader, TuplePrx tprx, bool startup_check) : GenericWorker(configLoader, tprx)
 {
 	this->startup_check_flag = startup_check;
@@ -90,7 +92,7 @@ void SpecificWorker::initialize()
 		auto [rr, re] = viewer_room->add_robot(params.ROBOT_WIDTH, params.ROBOT_LENGTH, 0, 100, QColor("Blue"));
 		robot_room_draw = rr;
 		// draw room in viewer_room
-		viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
+		habitacion_dibujo = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
 		//viewer_room->show();
 		show();
 
@@ -165,6 +167,9 @@ void SpecificWorker::compute()
 
 
    // update GUI
+
+   viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
+
    time_series_plotter->update();
    lcdNumber_x->display(robot_pose.translation().x());
    lcdNumber_y->display(robot_pose.translation().y());
@@ -178,7 +183,7 @@ void SpecificWorker::localise(RoboCompLidar3D::TPoints filter_data)
 	const auto &[m_corners, lines] = room_detector.compute_corners(filter_data, &viewer->scene);
 	Corners m_room_corners = nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse());
 
-	Match match = hungarian.match(m_corners, m_room_corners, 2000);
+	Match match = hungarian.match(m_corners, m_room_corners);
 
 	float max_match_error = 99999.f;
 
@@ -314,7 +319,7 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 {
 	auto const &[success, spin] = image_processor.check_colour_patch_in_image(this->camera360rgb_proxy, color_act);
 
-	qInfo() << " Es red: " << success;
+	qInfo() << " Es " << color_act << success;
 
 	if (success)
 	{
@@ -393,6 +398,10 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 			habitacion = 0;
 			color_act = "red";
 		}
+
+		viewer_room->scene.removeItem(habitacion_dibujo);
+
+		habitacion_dibujo = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
 
 		localised = false;
 

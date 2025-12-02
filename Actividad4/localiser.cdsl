@@ -3,7 +3,7 @@ import "OmniRobot.idsl";
 import "JoystickAdapter.idsl";
 import "Camera360RGB.idsl";
 
-Component localiser
+Component finaliser
 {
     Communications
     {

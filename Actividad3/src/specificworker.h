@@ -202,6 +202,7 @@ class SpecificWorker final : public GenericWorker
         // relocalization
         bool relocal_centered = false;
         bool localised = false;
+        QGraphicsRectItem* habitacion_dibujo;
 
         bool update_robot_pose(const Corners &corners, const Match &match);
         void move_robot(float adv, float rot, float max_match_error);
