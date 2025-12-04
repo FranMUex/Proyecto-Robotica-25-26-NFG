@@ -148,7 +148,7 @@ void SpecificWorker::compute()
 
    draw_lidar(data, &viewer->scene);
 
-	if (localised) localise(data);
+	localise(data);
 
 	auto [corners, lines] = room_detector.compute_corners(data, &viewer->scene);
 
@@ -156,6 +156,7 @@ void SpecificWorker::compute()
 
 	state_global = state_ret;
 	set_speeds(0, adv, rot);
+	nominal_rooms[0].get_walls();
 
 	// draw robot in viewer
 	robot_room_draw->setPos(robot_pose.translation().x(), robot_pose.translation().y());
@@ -165,6 +166,8 @@ void SpecificWorker::compute()
 
 
    // update GUI
+	viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
+
    time_series_plotter->update();
    lcdNumber_x->display(robot_pose.translation().x());
    lcdNumber_y->display(robot_pose.translation().y());
@@ -312,13 +315,33 @@ SpecificWorker::RetVal SpecificWorker::goto_room_center(const RoboCompLidar3D::T
 
 SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& puntos)
 {
+	static std::vector<QGraphicsItem*> g_items;
+	for (auto &item: g_items)
+	{
+		viewer->scene.removeItem(item);
+		delete item;
+	}
+
 	auto const &[success, spin] = image_processor.check_colour_patch_in_image(this->camera360rgb_proxy, color_act);
 
-	qInfo() << " Es red: " << success;
+	qInfo() << " Es " << color_act << success;
 
 	if (success)
 	{
 		localised = true;
+		localise(puntos);
+		for (auto doors = door_detector.detect(puntos); auto &door: doors)
+		{
+			door.global_p1 = nominal_rooms[habitacion].get_projection_of_point_on_closest_wall(robot_pose.cast<float>() * door.p1.cast<float>());
+			door.global_p2 = nominal_rooms[habitacion].get_projection_of_point_on_closest_wall(robot_pose.cast<float>() * door.p2.cast<float>());
+			auto b = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("red")), QBrush(QColor("red")));
+			b->setPos(door.global_p1.x(), door.global_p1.y());
+			g_items.push_back(b);
+			b = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("red")), QBrush(QColor("red")));
+			b->setPos(door.global_p2.x(), door.global_p2.y());
+			g_items.push_back(b);
+		}
+
 		return {State::GOTO_DOOR, 0.0, 0.0};
 	}
 	return {State::TURN, 0.0, 0.3 * spin};
@@ -338,7 +361,7 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints&
 	auto angulo = atan2(centro.x(), centro.y());
 
 	float dist = centro.norm();
-	if (dist < 400) return {State::ORIENT_TO_DOOR, 0.0, 0.0};
+	if (dist < 700) return {State::ORIENT_TO_DOOR, 0.0, 0.0};
 
 	float vrot = k * angulo;
 	float brake = exp(-angulo * angulo / (M_PI/10));
@@ -393,6 +416,8 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 			habitacion = 0;
 			color_act = "red";
 		}
+
+		lcdNumber_room->display(habitacion);
 
 		localised = false;
 

@@ -30,7 +30,7 @@ namespace rc
         if (scene != nullptr)
             draw_corners_on_2D_tab(corners, {Eigen::Vector2d{0,0}}, scene);
         current_walls = lines;  // update cached walls
-        return {corners, lines};  // TODO return only lines that form corners
+        return {corners, lines};
     }
     std::tuple<Corners, Lines> Room_Detector::compute_corners(const std::vector<Eigen::Vector3d> &line, QGraphicsScene *scene)
     {

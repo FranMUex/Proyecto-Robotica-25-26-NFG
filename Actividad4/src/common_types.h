@@ -54,6 +54,8 @@ struct Door
     float p1_angle;
     Eigen::Vector2f p2;
     float p2_angle;
+    Eigen::Vector2f global_p1;
+    Eigen::Vector2f global_p2;
     [[nodiscard]] float width() const { return (p2 - p1).norm(); }
     [[nodiscard]] Eigen::Vector2f center() const { return 0.5f * (p1 + p2); }
     [[nodiscard]] Eigen::Vector2f center_before(const Eigen::Vector2d &robot_pos, float offset = 500.f) const   // a point 500mm before the center along the door direction
@@ -101,4 +103,7 @@ struct Door
     }
 };
 using Doors = std::vector<Door>;
+using Wall = std::tuple<Eigen::ParametrizedLine<float, 2>, int, QPointF, QPointF>;
+using Walls = std::vector<Wall>;
+
 #endif //COMMON_TYPES_H

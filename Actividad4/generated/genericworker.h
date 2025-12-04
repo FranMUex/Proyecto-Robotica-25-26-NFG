@@ -21,6 +21,8 @@
 
 #include <stdint.h>
 
+#define USE_QTGUI
+
 #if Qt5_FOUND
 	#include <QtWidgets>
 #else

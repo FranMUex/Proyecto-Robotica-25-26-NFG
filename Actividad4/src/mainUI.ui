@@ -178,9 +178,12 @@
              <item>
               <widget class="QLabel" name="label_state">
                <property name="text">
-                <string>TextLabel</string>
+                <string>Room</string>
                </property>
               </widget>
+             </item>
+             <item>
+              <widget class="QLCDNumber" name="lcdNumber_room"/>
              </item>
             </layout>
            </item>
