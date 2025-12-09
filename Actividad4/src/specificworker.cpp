@@ -90,9 +90,7 @@ void SpecificWorker::initialize()
 		auto [rr, re] = viewer_room->add_robot(params.ROBOT_WIDTH, params.ROBOT_LENGTH, 0, 100, QColor("Blue"));
 		robot_room_draw = rr;
 		// draw room in viewer_room
-		viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
-		//viewer_room->show();
-		show();
+		room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
 
 
 		// initialise robot pose
@@ -156,7 +154,6 @@ void SpecificWorker::compute()
 
 	state_global = state_ret;
 	set_speeds(0, adv, rot);
-	nominal_rooms[0].get_walls();
 
 	// draw robot in viewer
 	robot_room_draw->setPos(robot_pose.translation().x(), robot_pose.translation().y());
@@ -318,8 +315,8 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 	static std::vector<QGraphicsItem*> g_items;
 	for (auto &item: g_items)
 	{
-		viewer->scene.removeItem(item);
-		delete item;
+		viewer_room->scene.removeItem(item);
+		//delete item;
 	}
 
 	auto const &[success, spin] = image_processor.check_colour_patch_in_image(this->camera360rgb_proxy, color_act);
@@ -330,16 +327,26 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 	{
 		localised = true;
 		localise(puntos);
-		for (auto doors = door_detector.detect(puntos); auto &door: doors)
+		for (auto door : door_detector.doors())
 		{
 			door.global_p1 = nominal_rooms[habitacion].get_projection_of_point_on_closest_wall(robot_pose.cast<float>() * door.p1.cast<float>());
 			door.global_p2 = nominal_rooms[habitacion].get_projection_of_point_on_closest_wall(robot_pose.cast<float>() * door.p2.cast<float>());
-			auto b = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("red")), QBrush(QColor("red")));
-			b->setPos(door.global_p1.x(), door.global_p1.y());
-			g_items.push_back(b);
-			b = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("red")), QBrush(QColor("red")));
+			qInfo() << door.global_p1.x();
+			qInfo() << door.global_p1.y();
+			qInfo() << door.global_p2.x();
+			qInfo() << door.global_p2.y();
+			auto a = viewer_room->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("blue")), QBrush(QColor("blue")));
+			auto b = viewer_room->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("blue")), QBrush(QColor("blue")));
+			a->setPos(door.global_p1.x(), door.global_p1.y());
 			b->setPos(door.global_p2.x(), door.global_p2.y());
+
+			const auto door_draw = viewer_room->scene.addLine(door.global_p1.x(), door.global_p1.y(), door.global_p2.x(), door.global_p2.y(), QPen(Qt::cyan, 30));
+
+			g_items.push_back(a);
 			g_items.push_back(b);
+			g_items.push_back(door_draw);
+
+			show();
 		}
 
 		return {State::GOTO_DOOR, 0.0, 0.0};
@@ -389,7 +396,7 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 		auto start_time = std::chrono::steady_clock::now();
 
 		// 2. Define the duration: 2 seconds.
-		auto duration = std::chrono::seconds(2);
+		auto duration = std::chrono::seconds(3);
 
 		// 3. Define the end time.
 		auto end_time = start_time + duration;
@@ -409,13 +416,16 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 		if (habitacion == 0)
 		{
 			habitacion = 1;
-			color_act = "green";
+			color_act = "red";
 		}
 		else
 		{
 			habitacion = 0;
-			color_act = "red";
+			color_act = "green";
 		}
+		viewer_room->scene.removeItem(room_draw);
+
+		room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
 
 		lcdNumber_room->display(habitacion);
 
