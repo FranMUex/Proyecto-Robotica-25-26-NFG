@@ -320,8 +320,7 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 	static std::vector<QGraphicsItem*> g_items;
 	for (auto &item: g_items)
 	{
-		auto scene = item->scene();
-		scene->removeItem(item);
+		viewer_room->scene.removeItem(item);
 		delete item;
 	}
 
@@ -412,7 +411,7 @@ SpecificWorker::RetVal SpecificWorker::cross_door (const RoboCompLidar3D::TPoint
 {
 	static auto start_time = std::chrono::steady_clock::now();
 
-	auto duration = std::chrono::seconds(3);
+	auto duration = std::chrono::seconds(2);
 
 	auto end_time = start_time + duration;
 
@@ -429,14 +428,11 @@ SpecificWorker::RetVal SpecificWorker::cross_door (const RoboCompLidar3D::TPoint
 			color_act = "green";
 		}
 
-		// auto scene = room_draw->scene();
-		// scene->removeItem(room_draw);
-		//
-		// auto children  = viewer->children();
-		//
-		// delete room_draw;
-		//
-		// room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
+		viewer_room->scene.removeItem(room_draw);
+
+		delete room_draw;
+
+		room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
 
 		lcdNumber_room->display(habitacion);
 
