@@ -84,6 +84,7 @@ class SpecificWorker final : public GenericWorker
     float spir_rot = 0.6;
     float spir_speed = 1000.0;
 
+    bool cross_start = true;
 
     QRectF dimensions;
     const int ROBOT_LENGTH = 400;
