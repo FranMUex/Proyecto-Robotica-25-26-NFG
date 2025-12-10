@@ -146,12 +146,14 @@ void SpecificWorker::compute()
 
    draw_lidar(data, &viewer->scene);
 
-	localise(data);
+	if (localised) localise(data);
 
 	auto [corners, lines] = room_detector.compute_corners(data, &viewer->scene);
 
 	auto &&[state_ret, adv, rot] = state_machine_navigator(data, state_global, corners, lines);
 
+	qInfo() << &viewer;
+	qInfo() << &viewer_room;
 	state_global = state_ret;
 	set_speeds(0, adv, rot);
 
@@ -281,6 +283,9 @@ std::tuple<SpecificWorker::State, float, float> SpecificWorker::state_machine_na
 	case State::ORIENT_TO_DOOR:
 		return orient_to_door(filter_data);
 		break;
+	case State::CROSS_DOOR:
+		return cross_door(filter_data);
+		break;
 	}
 }
 
@@ -315,8 +320,9 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 	static std::vector<QGraphicsItem*> g_items;
 	for (auto &item: g_items)
 	{
-		viewer_room->scene.removeItem(item);
-		//delete item;
+		auto scene = item->scene();
+		scene->removeItem(item);
+		delete item;
 	}
 
 	auto const &[success, spin] = image_processor.check_colour_patch_in_image(this->camera360rgb_proxy, color_act);
@@ -345,8 +351,6 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 			g_items.push_back(a);
 			g_items.push_back(b);
 			g_items.push_back(door_draw);
-
-			show();
 		}
 
 		return {State::GOTO_DOOR, 0.0, 0.0};
@@ -393,26 +397,27 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 
 	if (angulo < 0.01)
 	{
-		auto start_time = std::chrono::steady_clock::now();
+		localised = false;
+		return {State::CROSS_DOOR, 1000.0, 0.0};
+	}
+	//
+	float vrot = k * angulo;
+	// float brake = exp(-angulo * angulo / M_PI/3);
+	// float adv = 1000.0 * brake;
 
-		// 2. Define the duration: 2 seconds.
-		auto duration = std::chrono::seconds(3);
+	return {State::ORIENT_TO_DOOR, 0.0, vrot};
+}
 
-		// 3. Define the end time.
-		auto end_time = start_time + duration;
+SpecificWorker::RetVal SpecificWorker::cross_door (const RoboCompLidar3D::TPoints& puntos)
+{
+	static auto start_time = std::chrono::steady_clock::now();
 
-		// --- Loop Section ---
-		while (std::chrono::steady_clock::now() < end_time) {
-			// This is the code you want to repeat:
-			set_speeds(0, 1000.0, 0.0);
+	auto duration = std::chrono::seconds(3);
 
-			// OPTIONAL: Add a small delay (sleep) to prevent the loop from running
-			// too fast and consuming too much CPU. The duration of this delay
-			// depends on how quickly your device can accept new speed commands.
-			// For example, 10 milliseconds:
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
-		}
+	auto end_time = start_time + duration;
 
+	if (std::chrono::steady_clock::now() >= end_time)
+	{
 		if (habitacion == 0)
 		{
 			habitacion = 1;
@@ -423,9 +428,15 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 			habitacion = 0;
 			color_act = "green";
 		}
-		viewer_room->scene.removeItem(room_draw);
 
-		room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
+		// auto scene = room_draw->scene();
+		// scene->removeItem(room_draw);
+		//
+		// auto children  = viewer->children();
+		//
+		// delete room_draw;
+		//
+		// room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
 
 		lcdNumber_room->display(habitacion);
 
@@ -433,13 +444,10 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 
 		return {State::GOTO_ROOM_CENTER, 1000.0, 0.0};
 	}
-	//
-	float vrot = k * angulo;
-	// float brake = exp(-angulo * angulo / M_PI/3);
-	// float adv = 1000.0 * brake;
 
-	return {State::ORIENT_TO_DOOR, 0.0, vrot};
+	return {State::CROSS_DOOR, 1000.0, 0.0};
 }
+
 
 
 std::tuple<SpecificWorker::State, float, float> SpecificWorker::fwd(RoboCompLidar3D::TPoints puntos)
