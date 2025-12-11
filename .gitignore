@@ -2,6 +2,9 @@
 *.vscode
 *cmake-build-debug
 *CMakeCache.txt
+*CMakeFiles
+*Makefile
+*.qt
 *build
 *bin
 *.new
