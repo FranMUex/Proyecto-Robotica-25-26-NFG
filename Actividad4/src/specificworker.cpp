@@ -146,6 +146,8 @@ void SpecificWorker::compute()
    draw_lidar(data, &viewer->scene);
 
 	if(localised) localise(data);
+	float error = get_loc_error(data);
+	qInfo() << " Localization error: " << error;
 
 	auto [corners, lines] = room_detector.compute_corners(data, &viewer->scene);
 
@@ -174,17 +176,7 @@ void SpecificWorker::localise(RoboCompLidar3D::TPoints filter_data)
 	const auto &[m_corners, lines] = room_detector.compute_corners(filter_data, &viewer->scene);
 	Corners m_room_corners = nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse());
 
-	Match match = hungarian.match(m_corners, m_room_corners, 2000);
-
-	float max_match_error = 99999.f;
-
-	if (!match.empty())
-	{
-       const auto max_error_iter = std::ranges::max_element(match, [](const auto &a, const auto &b)
-           { return std::get<2>(a) < std::get<2>(b); });
-       max_match_error = static_cast<float>(std::get<2>(*max_error_iter));
-       time_series_plotter->addDataPoint(0,max_match_error);
-	}
+	Match match = hungarian.match(m_corners, m_room_corners);
 
 	Eigen::MatrixXd W(m_corners.size() * 2, 3);
 	Eigen::VectorXd b(m_corners.size() * 2);
@@ -208,7 +200,6 @@ void SpecificWorker::localise(RoboCompLidar3D::TPoints filter_data)
 	if (r.array().isNaN().any())
 		return;
 
-
 	robot_pose.translate(Eigen::Vector2d(r(0), r(1)));
 	robot_pose.rotate(r[2]);
 
@@ -223,15 +214,16 @@ float SpecificWorker::get_loc_error(RoboCompLidar3D::TPoints filter_data)
 	const auto &[m_corners, lines] = room_detector.compute_corners(filter_data, &viewer->scene);
 	Corners m_room_corners = nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse());
 
-	Match match = hungarian.match(m_corners, m_room_corners, 2000);
+	Match match = hungarian.match(m_corners, m_room_corners);
 
 	float max_match_error = 99999.f;
 
 	if (!match.empty())
 	{
-	   const auto max_error_iter = std::ranges::max_element(match, [](const auto &a, const auto &b)
-		   { return std::get<2>(a) < std::get<2>(b); });
-	   max_match_error = static_cast<float>(std::get<2>(*max_error_iter));
+		const auto max_error_iter = std::ranges::max_element(match, [](const auto &a, const auto &b)
+			{ return std::get<2>(a) < std::get<2>(b); });
+		max_match_error = static_cast<float>(std::get<2>(*max_error_iter));
+		time_series_plotter->addDataPoint(0,max_match_error);
 	}
 
 	return max_match_error;
@@ -309,10 +301,10 @@ SpecificWorker::RetVal SpecificWorker::goto_room_center(const RoboCompLidar3D::T
 	if (!centro)
 		return {State::GOTO_ROOM_CENTER, 1.0, 0.0};
 
-	// static QGraphicsEllipseItem *item = nullptr;
-	// if (item != nullptr) delete item;
-	// item = viewer->scene.addEllipse(-100, 100, 200, 200, QPen(Qt::red, 3), QBrush(Qt::red, Qt::SolidPattern));
-	// item->setPos(centro->x(), centro->y());
+	static QGraphicsEllipseItem *item = nullptr;
+	if (item != nullptr) delete item;
+	item = viewer->scene.addEllipse(-100, 100, 200, 200, QPen(Qt::red, 3), QBrush(Qt::red, Qt::SolidPattern));
+	item->setPos(centro->x(), centro->y());
 
 	float k = 0.5f;
 	auto angulo = atan2(centro->x(), centro->y());
@@ -338,14 +330,13 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 	}
 	g_items.clear();
 
-	auto const &[success, spin] = image_processor.check_colour_patch_in_image(this->camera360rgb_proxy, color_act);
+	auto const &[success, spin] = image_processor.check_colour_patch_in_image(this->camera360rgb_proxy, color_act, label_img);
 
 	qInfo() << " Es " << color_act << success;
 
 	float error = get_loc_error(puntos);
-	qInfo() << " Localization error: " << error;
 
-	bool true_success = error < 700.0f && success;
+	bool true_success = error < 800.0f && success;
 
 	if (true_success)
 	{
@@ -367,9 +358,12 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 			g_items.push_back(door_draw);
 		}
 
+		nominal_rooms[habitacion].doors = door_detector.doors();
+		srand(time(NULL));
+		puerta = rand() % door_detector.doors().size();
 		return {State::GOTO_DOOR, 0.0, 0.0};
 	}
-	return {State::TURN, 0.0, 0.3 * spin};
+	return {State::TURN, 0.0, 0.4 * spin};
 }
 
 SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints& puntos)
@@ -378,7 +372,7 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints&
 		return {State::GOTO_DOOR, 0.0, 0.0};
 
 	Doors doors = door_detector.doors();
-	Door door = doors.front();
+	Door door = doors[puerta];
 
 	auto centro = door.center_before(Eigen::Vector2d(robot_pose.translation().x(), robot_pose.translation().y()));
 
@@ -402,7 +396,7 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 		return {State::ORIENT_TO_DOOR, 0.0, 0.0};
 
 	Doors doors = door_detector.doors();
-	Door door = doors.front();
+	Door door = doors[puerta];
 
 	auto centro = door.center();
 
@@ -411,7 +405,8 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 
 	if (angulo < 0.1)
 	{
-		return {State::CROSS_DOOR, 1000.0, 0.0};
+		localised = false;
+		return {State::CROSS_DOOR, 0.0, 0.0};
 	}
 	//
 	float vrot = k * angulo;
@@ -456,7 +451,6 @@ SpecificWorker::RetVal SpecificWorker::cross_door (const RoboCompLidar3D::TPoint
 
 		lcdNumber_room->display(habitacion);
 
-		localised = false;
 		cross_start = true;
 
 		return {State::GOTO_ROOM_CENTER, 0.0, 0.0};

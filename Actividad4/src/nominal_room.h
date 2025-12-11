@@ -12,6 +12,7 @@
         {
             float width; //  mm
             float length;
+            Doors doors;
             explicit NominalRoom(const float width_=10000.f, const float length_=5000.f, Corners  corners_ = {}) :
                 width(width_), length(length_)
             {};

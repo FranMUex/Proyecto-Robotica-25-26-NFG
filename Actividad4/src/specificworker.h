@@ -136,6 +136,7 @@ class SpecificWorker final : public GenericWorker
         // rooms
         std::vector<NominalRoom> nominal_rooms{ NominalRoom{5500.f, 4000.f}, NominalRoom{8000.f, 4000.f}};
         int habitacion = 0;
+        int puerta;
         QColor color_act = "red";
         QGraphicsRectItem* room_draw;
         rc::Room_Detector room_detector;
