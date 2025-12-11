@@ -145,7 +145,7 @@ void SpecificWorker::compute()
 
    draw_lidar(data, &viewer->scene);
 
-	if (localised) localise(data);
+	if(localised) localise(data);
 
 	auto [corners, lines] = room_detector.compute_corners(data, &viewer->scene);
 
@@ -216,6 +216,25 @@ void SpecificWorker::localise(RoboCompLidar3D::TPoints filter_data)
 	double angle = std::atan2(robot_pose.rotation()(1, 0), robot_pose.rotation()(0, 0));
 	robot_room_draw->setRotation(angle * 180 / M_PI);
 	lcdNumber_angle->display(angle);
+}
+
+float SpecificWorker::get_loc_error(RoboCompLidar3D::TPoints filter_data)
+{
+	const auto &[m_corners, lines] = room_detector.compute_corners(filter_data, &viewer->scene);
+	Corners m_room_corners = nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse());
+
+	Match match = hungarian.match(m_corners, m_room_corners, 2000);
+
+	float max_match_error = 99999.f;
+
+	if (!match.empty())
+	{
+	   const auto max_error_iter = std::ranges::max_element(match, [](const auto &a, const auto &b)
+		   { return std::get<2>(a) < std::get<2>(b); });
+	   max_match_error = static_cast<float>(std::get<2>(*max_error_iter));
+	}
+
+	return max_match_error;
 }
 
 void SpecificWorker::set_speeds(float vert, float adv, float rot)
@@ -323,7 +342,12 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 
 	qInfo() << " Es " << color_act << success;
 
-	if (success)
+	float error = get_loc_error(puntos);
+	qInfo() << " Localization error: " << error;
+
+	bool true_success = error < 700.0f && success;
+
+	if (true_success)
 	{
 		localised = true;
 		localise(puntos);

@@ -232,6 +232,7 @@ class SpecificWorker final : public GenericWorker
     void set_speeds(float vert, float adv, float rot);
 
     void localise(RoboCompLidar3D::TPoints filter_data);
+    float get_loc_error(RoboCompLidar3D::TPoints filter_data);
 
 
 signals:

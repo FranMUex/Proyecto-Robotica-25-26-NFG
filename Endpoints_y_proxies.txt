@@ -1,0 +1,2 @@
+Los proxies son intermediarios que utilizan los componentes para comunicarse con el webots o con hardware real
+Los endpoints los utilizan los programas dentro del ordenador para IPC
