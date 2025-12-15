@@ -122,7 +122,7 @@ class SpecificWorker final : public GenericWorker
             float RELOCAL_DELTA = 5.0f * M_PI/180.f; // small probe angle in radians
             float RELOCAL_MATCH_MAX_DIST = 2000.f;   // mm for Hungarian gating
             float RELOCAL_DONE_COST = 500.f;
-            float RELOCAL_DONE_MATCH_MAX_ERROR = 800.f;
+            float RELOCAL_DONE_MATCH_MAX_ERROR = 850.f;
         };
         Params params;
 
@@ -221,6 +221,7 @@ class SpecificWorker final : public GenericWorker
     RetVal turn_p(const Corners &corners);
     RetVal goto_room_center(const RoboCompLidar3D::TPoints& points);
     RetVal goto_door(const RoboCompLidar3D::TPoints& puntos);
+    RetVal goto_door_p(const RoboCompLidar3D::TPoints &points);
     RetVal orient_to_door (const RoboCompLidar3D::TPoints& puntos);
     RetVal cross_door (const RoboCompLidar3D::TPoints& puntos);
 

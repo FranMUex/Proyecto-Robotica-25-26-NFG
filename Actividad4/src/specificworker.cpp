@@ -311,7 +311,7 @@ std::tuple<SpecificWorker::State, float, float> SpecificWorker::state_machine_na
 		return turn_p(corners);
 		break;
 	case State::GOTO_DOOR:
-		return goto_door(filter_data);
+		return goto_door_p(filter_data);
 		break;
 	case State::ORIENT_TO_DOOR:
 		return orient_to_door(filter_data);
@@ -423,7 +423,7 @@ SpecificWorker::RetVal SpecificWorker::turn_p(const Corners &corners)
 
     	nominal_rooms[habitacion].doors = door_detector.doors();
     	srand(time(NULL));
-    	puerta = rand() % door_detector.doors().size();
+    	current_door = rand() % door_detector.doors().size();
 
         return {State::GOTO_DOOR, 0.0f, 0.0f};  // SUCCESS
     }
@@ -437,7 +437,7 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints&
 		return {State::GOTO_DOOR, 0.0, 0.0};
 
 	Doors doors = door_detector.doors();
-	Door door = doors[puerta];
+	Door door = doors[current_door];
 
 	auto centro = door.center_before(Eigen::Vector2d(robot_pose.translation().x(), robot_pose.translation().y()));
 
@@ -454,20 +454,69 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints&
 	return {State::GOTO_DOOR, adv, vrot};
 }
 
+SpecificWorker::RetVal SpecificWorker::goto_door_p(const RoboCompLidar3D::TPoints &points)
+{
+    Doors doors;
+    // Exit conditions
+    if ( doors = door_detector.doors(); doors.empty())
+    {
+        qInfo() << __FUNCTION__ << "No doors detected, switching to UPDATE_POSE";
+        return {State::GOTO_DOOR, 0.f, 0.f};  // TODO: keep moving for a while?
+    }
+    // select from doors, the one closest to the nominal door
+    Door *target_door = nullptr;
+    if (localised)
+    {
+        qInfo() << __FUNCTION__ << "Localised, selecting door closest to nominal door";
+        const auto dn = nominal_rooms[habitacion].doors[current_door];
+        const auto sd = std::ranges::min_element(doors, [dn, this](const auto &a, const auto &b)
+               {  return (a.center() - robot_pose.inverse().cast<float>()  * dn.center_global()).norm() <
+                         (b.center() - robot_pose.inverse().cast<float>()  * dn.center_global()).norm(); });
+        target_door = &*sd;
+    }
+    else  // select the one closest to the robot's heading direction
+    {
+        qInfo() << __FUNCTION__ << "Not localised, selecting door closest to robot heading";
+        const auto sd = std::ranges::min_element(doors, [](const auto &a, const auto &b)
+               {  return abs(a.p1_angle) < abs(b.p1_angle); });
+        target_door = &*sd;
+    }
+    qInfo() << target_door->p1.x() << target_door->p1.y();
+
+    // distance to target is less than threshold, stop and switch to ORIENT_TO_DOOR
+    constexpr float offset = 600.f;
+    const auto target = target_door->center_before(robot_pose.translation(), offset);
+    const auto dist_to_door = target.norm();
+
+	auto centro = target_door->center_before(Eigen::Vector2d(robot_pose.translation().x(), robot_pose.translation().y()));
+
+	float k = 1.0f;
+	auto angulo = atan2(centro.x(), centro.y());
+
+	float dist = centro.norm();
+	if (dist < 600) return {State::CROSS_DOOR, 0.0, 0.0};
+
+	float vrot = k * angulo;
+	float brake = exp(-angulo * angulo / (M_PI/10));
+	float adv = 1000.0 * brake;
+
+	return {State::GOTO_DOOR, adv, vrot};
+}
+
 SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TPoints& puntos)
 {
 	if (door_detector.doors().empty())
 		return {State::ORIENT_TO_DOOR, 0.0, 0.0};
 
 	Doors doors = door_detector.doors();
-	Door door = doors[puerta];
+	Door door = doors[current_door];
 
 	auto centro = door.center();
 
 	float k = 1.0f;
 	auto angulo = atan2(centro.x(), centro.y());
 
-	if (angulo < 0.1)
+	if (abs(angulo) < 0.1)
 	{
 		localised = false;
 		return {State::CROSS_DOOR, 0.0, 0.0};
