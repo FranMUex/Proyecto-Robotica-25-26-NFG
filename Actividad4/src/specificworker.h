@@ -122,7 +122,7 @@ class SpecificWorker final : public GenericWorker
             float RELOCAL_DELTA = 5.0f * M_PI/180.f; // small probe angle in radians
             float RELOCAL_MATCH_MAX_DIST = 2000.f;   // mm for Hungarian gating
             float RELOCAL_DONE_COST = 500.f;
-            float RELOCAL_DONE_MATCH_MAX_ERROR = 1000.f;
+            float RELOCAL_DONE_MATCH_MAX_ERROR = 800.f;
         };
         Params params;
 
@@ -136,6 +136,7 @@ class SpecificWorker final : public GenericWorker
         // rooms
         std::vector<NominalRoom> nominal_rooms{ NominalRoom{5500.f, 4000.f}, NominalRoom{8000.f, 4000.f}};
         int habitacion = 0;
+        int current_door = 0;
         int puerta;
         QColor color_act = "red";
         QGraphicsRectItem* room_draw;
@@ -217,6 +218,7 @@ class SpecificWorker final : public GenericWorker
     RetVal state_machine(RoboCompLidar3D::TPoints puntos, State state);
     RetVal state_machine_navigator(RoboCompLidar3D::TPoints filter_data, State state, Corners corners, Lines lines);
     RetVal turn_to_color(RoboCompLidar3D::TPoints& puntos);
+    RetVal turn_p(const Corners &corners);
     RetVal goto_room_center(const RoboCompLidar3D::TPoints& points);
     RetVal goto_door(const RoboCompLidar3D::TPoints& puntos);
     RetVal orient_to_door (const RoboCompLidar3D::TPoints& puntos);

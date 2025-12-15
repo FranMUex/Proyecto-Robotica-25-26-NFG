@@ -58,6 +58,7 @@ struct Door
     Eigen::Vector2f global_p2;
     [[nodiscard]] float width() const { return (p2 - p1).norm(); }
     [[nodiscard]] Eigen::Vector2f center() const { return 0.5f * (p1 + p2); }
+    [[nodiscard]] Eigen::Vector2f center_global() const { return 0.5f * (global_p1 + global_p2); }
     [[nodiscard]] Eigen::Vector2f center_before(const Eigen::Vector2d &robot_pos, float offset = 500.f) const   // a point 500mm before the center along the door direction
     {
         // computer the normal to the door direction pointing towards the robot
