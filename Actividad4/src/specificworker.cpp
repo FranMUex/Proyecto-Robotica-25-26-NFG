@@ -176,7 +176,7 @@ void SpecificWorker::localise(RoboCompLidar3D::TPoints filter_data)
 	const auto &[m_corners, lines] = room_detector.compute_corners(filter_data, &viewer->scene);
 	Corners m_room_corners = nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse());
 
-	Match match = hungarian.match(m_corners, m_room_corners);
+	Match match = hungarian.match(m_corners, nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse()));
 
 	Eigen::MatrixXd W(m_corners.size() * 2, 3);
 	Eigen::VectorXd b(m_corners.size() * 2);
@@ -193,9 +193,6 @@ void SpecificWorker::localise(RoboCompLidar3D::TPoints filter_data)
 	}
 	// estimate new pose with pseudoinverse
 	const Eigen::Vector3d r = (W.transpose() * W).inverse() * W.transpose() * b;
-	std::cout << r << std::endl;
-	qInfo() << "--------------------";
-
 
 	if (r.array().isNaN().any())
 		return;
@@ -214,7 +211,7 @@ float SpecificWorker::get_loc_error(RoboCompLidar3D::TPoints filter_data)
 	const auto &[m_corners, lines] = room_detector.compute_corners(filter_data, &viewer->scene);
 	Corners m_room_corners = nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse());
 
-	Match match = hungarian.match(m_corners, m_room_corners);
+	Match match = hungarian.match(m_corners, nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse()));
 
 	float max_match_error = 99999.f;
 
@@ -244,26 +241,24 @@ void SpecificWorker::set_speeds(float vert, float adv, float rot)
 
 std::tuple<SpecificWorker::State, float, float> SpecificWorker::state_machine(RoboCompLidar3D::TPoints filter_data, State state)
 {
+	qInfo() << to_string(state);
+	label_state_name->setText(to_string(state));
+	
 	switch (state)
 	{
 	case State::IDLE:
-		qInfo() << "IDLE";
 		return fwd(filter_data);
 		break;
 	case State::FORWARD:
-		qInfo() << "FORWARD";
 		return fwd(filter_data);
 		break;
 	case State::TURN:
-		qInfo() << "TURN";
 		return turn(filter_data);
 		break;
 	case State::FOLLOW_WALL:
-		qInfo() << "FOLLOW_WALL";
 		return wall(filter_data);
 		break;
 	case State::SPIRAL:
-		qInfo() << "SPIRAL";
 		return spiral(filter_data);
 		break;
 
@@ -273,6 +268,7 @@ std::tuple<SpecificWorker::State, float, float> SpecificWorker::state_machine(Ro
 std::tuple<SpecificWorker::State, float, float> SpecificWorker::state_machine_navigator(RoboCompLidar3D::TPoints filter_data, State state, Corners corners, Lines lines)
 {
 	qInfo() << to_string(state);
+	label_state_name->setText(to_string(state));
 
 	switch (state)
 	{
@@ -306,7 +302,7 @@ SpecificWorker::RetVal SpecificWorker::goto_room_center(const RoboCompLidar3D::T
 	item = viewer->scene.addEllipse(-100, 100, 200, 200, QPen(Qt::red, 3), QBrush(Qt::red, Qt::SolidPattern));
 	item->setPos(centro->x(), centro->y());
 
-	float k = 0.5f;
+	float k = 1.0f;
 	auto angulo = atan2(centro->x(), centro->y());
 
 	float dist = centro.value().norm();
@@ -314,7 +310,6 @@ SpecificWorker::RetVal SpecificWorker::goto_room_center(const RoboCompLidar3D::T
 
 	float vrot = k * angulo;
 	float brake = exp(-angulo * angulo / (M_PI/10));
-	qInfo() << "Brake: " << brake;
 	float adv = 1000.0 * brake;
 
 	return {State::GOTO_ROOM_CENTER, adv, vrot};
@@ -334,11 +329,7 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(RoboCompLidar3D::TPoints& p
 
 	qInfo() << " Es " << color_act << success;
 
-	float error = get_loc_error(puntos);
-
-	bool true_success = error < 800.0f && success;
-
-	if (true_success)
+	if (success)
 	{
 		localised = true;
 		localise(puntos);
@@ -384,7 +375,6 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints&
 
 	float vrot = k * angulo;
 	float brake = exp(-angulo * angulo / (M_PI/10));
-	qInfo() << "Brake: " << brake;
 	float adv = 1000.0 * brake;
 
 	return {State::GOTO_DOOR, adv, vrot};

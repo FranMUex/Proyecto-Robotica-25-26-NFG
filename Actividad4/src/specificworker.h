@@ -205,8 +205,6 @@ class SpecificWorker final : public GenericWorker
         void move_robot(float adv, float rot, float max_match_error);
         Eigen::Vector3d solve_pose(const Corners &corners, const Match &match);
         void predict_robot_pose();
-        //TODO
-        std::tuple<float, float> robot_controller(const Eigen::Vector2f &target);
 
     RoboCompLidar3D::TPoints get_filtered_lidar_data();
 
