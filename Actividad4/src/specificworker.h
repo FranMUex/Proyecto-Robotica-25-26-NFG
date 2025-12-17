@@ -138,6 +138,7 @@ class SpecificWorker final : public GenericWorker
         int habitacion = 0;
         int current_door = 0;
         int puerta;
+        //Door *puerta_act;
         QColor color_act = "red";
         QGraphicsRectItem* room_draw;
         rc::Room_Detector room_detector;
@@ -223,7 +224,9 @@ class SpecificWorker final : public GenericWorker
     RetVal goto_door(const RoboCompLidar3D::TPoints& puntos);
     RetVal goto_door_p(const RoboCompLidar3D::TPoints &points);
     RetVal orient_to_door (const RoboCompLidar3D::TPoints& puntos);
+    RetVal orient_to_door_p (const RoboCompLidar3D::TPoints& points);
     RetVal cross_door (const RoboCompLidar3D::TPoints& puntos);
+    RetVal cross_door_p (const RoboCompLidar3D::TPoints& puntos);
 
 
     RetVal fwd(RoboCompLidar3D::TPoints puntos);

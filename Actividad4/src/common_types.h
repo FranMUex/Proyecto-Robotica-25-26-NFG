@@ -48,8 +48,7 @@ using Features = std::tuple<Lines, Par_lines, Corners, All_Corners>;
 using Center = std::pair<QPointF, int>;  // center of a polygon and number of votes
 using Match = std::vector<std::tuple<Corner, Corner, double>>;  //  measurement - nominal - error Both must be in the same reference system
 using Peaks = std::vector<std::tuple<Eigen::Vector2f, float>>; // 2D points representing peaks with angle wrt robot frame
-struct Door
-{
+struct Door {
     Eigen::Vector2f p1;
     float p1_angle;
     Eigen::Vector2f p2;
@@ -59,6 +58,14 @@ struct Door
     [[nodiscard]] float width() const { return (p2 - p1).norm(); }
     [[nodiscard]] Eigen::Vector2f center() const { return 0.5f * (p1 + p2); }
     [[nodiscard]] Eigen::Vector2f center_global() const { return 0.5f * (global_p1 + global_p2); }
+    [[nodiscard]] float center_angle() const
+    {
+        auto centro = center();
+
+        auto angulo = atan2(centro.x(), centro.y());
+
+        return abs(angulo);
+    }
     [[nodiscard]] Eigen::Vector2f center_before(const Eigen::Vector2d &robot_pos, float offset = 500.f) const   // a point 500mm before the center along the door direction
     {
         // computer the normal to the door direction pointing towards the robot

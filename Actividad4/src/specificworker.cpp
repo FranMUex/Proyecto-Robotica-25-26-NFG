@@ -143,7 +143,9 @@ void SpecificWorker::compute()
    RoboCompLidar3D::TPoints data = get_filtered_lidar_data();
    data = door_detector.filter_points(data, &viewer->scene);
 
-   draw_lidar(data, &viewer->scene);
+	nominal_rooms[habitacion].doors = door_detector.doors();
+
+    draw_lidar(data, &viewer->scene);
 
 	if(localised) localise(data);
 	float error = get_loc_error(data);
@@ -423,7 +425,7 @@ SpecificWorker::RetVal SpecificWorker::turn_p(const Corners &corners)
 
     	nominal_rooms[habitacion].doors = door_detector.doors();
     	srand(time(NULL));
-    	current_door = rand() % door_detector.doors().size();
+    	//current_door = rand() % door_detector.doors().size();
 
         return {State::GOTO_DOOR, 0.0f, 0.0f};  // SUCCESS
     }
@@ -483,18 +485,20 @@ SpecificWorker::RetVal SpecificWorker::goto_door_p(const RoboCompLidar3D::TPoint
     }
     qInfo() << target_door->p1.x() << target_door->p1.y();
 
+
     // distance to target is less than threshold, stop and switch to ORIENT_TO_DOOR
     constexpr float offset = 600.f;
     const auto target = target_door->center_before(robot_pose.translation(), offset);
     const auto dist_to_door = target.norm();
 
 	auto centro = target_door->center_before(Eigen::Vector2d(robot_pose.translation().x(), robot_pose.translation().y()));
+	//puerta_act = *target_door;
 
 	float k = 1.0f;
 	auto angulo = atan2(centro.x(), centro.y());
 
 	float dist = centro.norm();
-	if (dist < 600) return {State::CROSS_DOOR, 0.0, 0.0};
+	if (dist < 600) return {State::ORIENT_TO_DOOR, 0.0, 0.0};
 
 	float vrot = k * angulo;
 	float brake = exp(-angulo * angulo / (M_PI/10));
@@ -509,7 +513,9 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 		return {State::ORIENT_TO_DOOR, 0.0, 0.0};
 
 	Doors doors = door_detector.doors();
+	//Doors doors = nominal_rooms[habitacion].doors;
 	Door door = doors[current_door];
+	//Door door = doors.front();
 
 	auto centro = door.center();
 
@@ -528,6 +534,61 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TP
 
 	return {State::ORIENT_TO_DOOR, 0.0, vrot};
 }
+
+SpecificWorker::RetVal SpecificWorker::orient_to_door_p(const RoboCompLidar3D::TPoints &points)
+{
+	// data
+	const auto doors = door_detector.doors();
+	if (localised)
+	{
+		const auto dn = nominal_rooms[habitacion].doors[current_door];
+		const auto sd = std::ranges::min_element(doors, [dn, this](const auto &a, const auto &b)
+			{  return (a.center() - robot_pose.inverse().cast<float>() * dn.center_global()).norm() <
+					  (b.center() - robot_pose.inverse().cast<float>() * dn.center_global()).norm(); });
+		//qInfo() << __FUNCTION__ << "Localised, selecting door closest to nominal door" << sd->center_angle() << params.RELOCAL_MAX_ORIENTED_ERROR << doors.size();
+		auto centro = sd->center();
+
+		float k = 1.0f;
+		auto angulo = atan2(centro.x(), centro.y());
+
+		if (abs(angulo) < 0.1)
+		{
+			localised = false;
+			return {State::CROSS_DOOR, 0.0, 0.0};
+		}
+		//
+		float vrot = k * angulo;
+		// float brake = exp(-angulo * angulo / M_PI/3);
+		// float adv = 1000.0 * brake;
+
+		return {State::ORIENT_TO_DOOR, 0.0, vrot};
+	}
+
+	else  // select the one closest to the robot's heading direction
+	{
+		qInfo() << __FUNCTION__ << "Not localised, selecting door closest to robot heading";
+		const auto sd = std::ranges::min_element(doors, [](const auto &a, const auto &b)
+			   {  return std::fabs(a.center_angle()) < std::fabs(b.center_angle());} );
+
+		auto centro = sd->center();
+
+		float k = 1.0f;
+		auto angulo = atan2(centro.x(), centro.y());
+
+		if (abs(angulo) < 0.1)
+		{
+			localised = false;
+			return {State::CROSS_DOOR, 0.5, 0.0};
+		}
+		//
+		float vrot = k * angulo;
+		// float brake = exp(-angulo * angulo / M_PI/3);
+		// float adv = 1000.0 * brake;
+
+		return {State::ORIENT_TO_DOOR, 0.0, vrot};
+	}
+}
+
 
 SpecificWorker::RetVal SpecificWorker::cross_door (const RoboCompLidar3D::TPoints& puntos)
 {
@@ -572,6 +633,77 @@ SpecificWorker::RetVal SpecificWorker::cross_door (const RoboCompLidar3D::TPoint
 
 	return {State::CROSS_DOOR, 1000.0, 0.0};
 }
+
+/*SpecificWorker::RetVal SpecificWorker::cross_door_p(const RoboCompLidar3D::TPoints &points)
+{
+	static bool first_time = true;
+	static std::chrono::time_point<std::chrono::system_clock> start;
+
+
+	// Exit condition: the robot has advanced 1000 or equivalently 2 seconds at 500 mm/s
+	if (first_time)
+	{
+		first_time = false;
+		start = std::chrono::high_resolution_clock::now();
+		return {State::CROSS_DOOR, 500.0f, 0.0f};
+	}
+	else
+	{
+		const auto elapsed = std::chrono::high_resolution_clock::now() - start;
+		//qInfo() << __FUNCTION__ << "Elapsed time crossing door: "
+		//         << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms";
+		if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > 3000)
+		{
+			first_time = true;
+			const auto &leaving_door = nominal_rooms[habitacion].doors[current_door];
+			int next_room_idx = leaving_door.connects_to_room;
+			// if entering known room, relocalise the robot
+			if (next_room_idx >= 0 and nominal_rooms[next_room_idx].visited)
+			{
+				//qInfo() << __FUNCTION__ << "Entering known room " << next_room_idx << ". Skipping LOCALISE.";
+
+
+				// Update indices to the new room
+				int next_door_idx = leaving_door.connects_to_door;
+				current_room = next_room_idx;
+				current_door = next_door_idx;
+
+
+				// Compute robot pose based on the door in the new room frame.
+				const auto &entering_door = nominal_rooms[current_room].doors[current_door]; // door we are entering now
+				Eigen::Vector2f door_center = entering_door.center_global(); //
+				// Vector from door to origin (0,0) is -door_center
+				const float angle = std::atan2(-door_center.x(), -door_center.y());
+
+
+				// robot_pose now must be translated so it is drawn in the new room correctly
+				robot_pose.setIdentity();
+				door_center.y() -= 500; // place robot 500 mm inside the room
+				robot_pose.translate(door_center);
+				robot_pose.rotate(0);
+				//qInfo() << __FUNCTION__ << "Robot localised in NEW room " << current_room << " at door " << current_door;
+				std::cout << door_center.x() << " " << door_center.y() << " " << angle << std::endl;
+
+
+
+
+				localised = true;
+				// Continue navigation in the new room
+				return {STATE::GOTO_ROOM_CENTER, 0.f, 0.f};
+			}
+			else // Unknown room. I need to store the door index of the current door and start tracking the just crossed door,
+			{
+				door_crossing = DoorCrossing{current_room, current_door};
+				nominal_rooms[current_room].doors[current_door].visited = true; // exiting door
+				// from here it must be updated until localisation is achieved again
+				return {STATE::LOCALISE, 0.f, 0.f};
+			}
+		}
+		else // keep crossing
+			return {STATE::CROSS_DOOR, 500.f, 0.f};
+	}
+}*/
+
 
 
 
