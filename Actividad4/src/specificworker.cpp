@@ -148,8 +148,6 @@ void SpecificWorker::compute()
     draw_lidar(data, &viewer->scene);
 
 	if(localised) localise(data);
-	float error = get_loc_error(data);
-	qInfo() << " Localization error: " << error;
 
 	auto [corners, lines] = room_detector.compute_corners(data, &viewer->scene);
 
@@ -164,7 +162,6 @@ void SpecificWorker::compute()
 	robot_room_draw->setRotation(angle);
 
    // update GUI
-
    time_series_plotter->update();
    lcdNumber_x->display(robot_pose.translation().x());
    lcdNumber_y->display(robot_pose.translation().y());
@@ -316,7 +313,7 @@ std::tuple<SpecificWorker::State, float, float> SpecificWorker::state_machine_na
 		return goto_door_p(filter_data);
 		break;
 	case State::ORIENT_TO_DOOR:
-		return orient_to_door(filter_data);
+		return orient_to_door_p(filter_data);
 		break;
 	case State::CROSS_DOOR:
 		return cross_door(filter_data);
@@ -425,35 +422,12 @@ SpecificWorker::RetVal SpecificWorker::turn_p(const Corners &corners)
 
     	nominal_rooms[habitacion].doors = door_detector.doors();
     	srand(time(NULL));
-    	//current_door = rand() % door_detector.doors().size();
+    	current_door = rand() % door_detector.doors().size();
 
         return {State::GOTO_DOOR, 0.0f, 0.0f};  // SUCCESS
     }
     // continue turning
     return {State::TURN, 0.0f, left_right*params.RELOCAL_ROT_SPEED};
-}
-
-SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints& puntos)
-{
-	if (door_detector.doors().empty())
-		return {State::GOTO_DOOR, 0.0, 0.0};
-
-	Doors doors = door_detector.doors();
-	Door door = doors[current_door];
-
-	auto centro = door.center_before(Eigen::Vector2d(robot_pose.translation().x(), robot_pose.translation().y()));
-
-	float k = 1.0f;
-	auto angulo = atan2(centro.x(), centro.y());
-
-	float dist = centro.norm();
-	if (dist < 600) return {State::ORIENT_TO_DOOR, 0.0, 0.0};
-
-	float vrot = k * angulo;
-	float brake = exp(-angulo * angulo / (M_PI/10));
-	float adv = 1000.0 * brake;
-
-	return {State::GOTO_DOOR, adv, vrot};
 }
 
 SpecificWorker::RetVal SpecificWorker::goto_door_p(const RoboCompLidar3D::TPoints &points)
@@ -505,34 +479,6 @@ SpecificWorker::RetVal SpecificWorker::goto_door_p(const RoboCompLidar3D::TPoint
 	float adv = 1000.0 * brake;
 
 	return {State::GOTO_DOOR, adv, vrot};
-}
-
-SpecificWorker::RetVal SpecificWorker::orient_to_door (const RoboCompLidar3D::TPoints& puntos)
-{
-	if (door_detector.doors().empty())
-		return {State::ORIENT_TO_DOOR, 0.0, 0.0};
-
-	Doors doors = door_detector.doors();
-	//Doors doors = nominal_rooms[habitacion].doors;
-	Door door = doors[current_door];
-	//Door door = doors.front();
-
-	auto centro = door.center();
-
-	float k = 1.0f;
-	auto angulo = atan2(centro.x(), centro.y());
-
-	if (abs(angulo) < 0.1)
-	{
-		localised = false;
-		return {State::CROSS_DOOR, 0.0, 0.0};
-	}
-	//
-	float vrot = k * angulo;
-	// float brake = exp(-angulo * angulo / M_PI/3);
-	// float adv = 1000.0 * brake;
-
-	return {State::ORIENT_TO_DOOR, 0.0, vrot};
 }
 
 SpecificWorker::RetVal SpecificWorker::orient_to_door_p(const RoboCompLidar3D::TPoints &points)
