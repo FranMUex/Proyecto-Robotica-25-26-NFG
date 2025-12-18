@@ -32,7 +32,7 @@ then
   gnome-terminal --tab --execute bash -c "bin/Lidar3D etc/config_helios_webots"
 fi
 
-if ! killall python_xbox_controller
+if ! killall -0 python
 then
   cd ~/robocomp/components/robocomp-robolab/components/hardware/external_control/python_xbox_controller/
 

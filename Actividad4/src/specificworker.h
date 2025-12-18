@@ -51,6 +51,7 @@
 #include "door_detector.h"
 #include "image_processor.h"
 #include "pointcloud_center_estimator.h"
+#include "door_crossing_tracker.h"
 
 /**
  * \brief Class SpecificWorker implements the core functionality of the component.
@@ -129,6 +130,7 @@ class SpecificWorker final : public GenericWorker
         // viewer
         AbstractGraphicViewer *viewer, *viewer_room;
         QGraphicsPolygonItem *robot_draw, *robot_room_draw;
+        DoorCrossing door_crossing;
 
         // robot
         Eigen::Affine2d robot_pose;
@@ -137,9 +139,6 @@ class SpecificWorker final : public GenericWorker
         std::vector<NominalRoom> nominal_rooms{ NominalRoom{5500.f, 4000.f}, NominalRoom{8000.f, 4000.f}};
         int habitacion = 0;
         int current_door = 0;
-        int puerta;
-        //Door *puerta_act;
-        QColor color_act = "red";
         QGraphicsRectItem* room_draw;
         rc::Room_Detector room_detector;
         rc::Hungarian hungarian;
