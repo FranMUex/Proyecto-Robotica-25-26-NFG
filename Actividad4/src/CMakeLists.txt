@@ -34,5 +34,5 @@ SET(LIBS ${LIBS} tbb Qt6PrintSupport)
 LIST(APPEND LIBS ${LIBS})
 
 # no-char8_t to avoid a problem with ICE Connection lib.
-add_definitions(-g3 -O0 -fno-char8_t -pipe)
+add_definitions(-g3 -fno-char8_t)
 

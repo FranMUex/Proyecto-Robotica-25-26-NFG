@@ -306,16 +306,16 @@ std::tuple<SpecificWorker::State, float, float> SpecificWorker::state_machine_na
 		return goto_room_center(filter_data);
 		break;
 	case State::TURN:
-		return turn_p(corners);
+		return turn_to_color(corners);
 		break;
 	case State::GOTO_DOOR:
-		return goto_door_p(filter_data);
+		return goto_door(filter_data);
 		break;
 	case State::ORIENT_TO_DOOR:
-		return orient_to_door_p(filter_data);
+		return orient_to_door(filter_data);
 		break;
 	case State::CROSS_DOOR:
-		return cross_door_p(filter_data);
+		return cross_door(filter_data);
 		break;
 	}
 }
@@ -345,7 +345,7 @@ SpecificWorker::RetVal SpecificWorker::goto_room_center(const RoboCompLidar3D::T
 	return {State::GOTO_ROOM_CENTER, adv, vrot};
 }
 
-SpecificWorker::RetVal SpecificWorker::turn_p(const Corners &corners)
+SpecificWorker::RetVal SpecificWorker::turn_to_color(const Corners &corners)
 {
 	static std::vector<QGraphicsItem*> g_items;
 	for (auto &item : g_items)
@@ -428,7 +428,7 @@ SpecificWorker::RetVal SpecificWorker::turn_p(const Corners &corners)
     return {State::TURN, 0.0f, left_right*params.RELOCAL_ROT_SPEED};
 }
 
-SpecificWorker::RetVal SpecificWorker::goto_door_p(const RoboCompLidar3D::TPoints &points)
+SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints &points)
 {
     Doors doors;
     // Exit conditions
@@ -478,7 +478,7 @@ SpecificWorker::RetVal SpecificWorker::goto_door_p(const RoboCompLidar3D::TPoint
 	return {State::GOTO_DOOR, adv, vrot};
 }
 
-SpecificWorker::RetVal SpecificWorker::orient_to_door_p(const RoboCompLidar3D::TPoints &points)
+SpecificWorker::RetVal SpecificWorker::orient_to_door(const RoboCompLidar3D::TPoints &points)
 {
 	// data
 	const auto doors = door_detector.doors();
@@ -501,8 +501,6 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door_p(const RoboCompLidar3D::T
 		}
 		//
 		float vrot = k * angulo;
-		// float brake = exp(-angulo * angulo / M_PI/3);
-		// float adv = 1000.0 * brake;
 
 		return {State::ORIENT_TO_DOOR, 0.0, vrot};
 	}
@@ -518,15 +516,13 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door_p(const RoboCompLidar3D::T
 		float k = 1.0f;
 		auto angulo = atan2(centro.x(), centro.y());
 
-		if (abs(angulo) < 0.1)
+		if (abs(angulo) < 0.01)
 		{
 			localised = false;
 			return {State::CROSS_DOOR, 0.5, 0.0};
 		}
-		//
+
 		float vrot = k * angulo;
-		// float brake = exp(-angulo * angulo / M_PI/3);
-		// float adv = 1000.0 * brake;
 
 		return {State::ORIENT_TO_DOOR, 0.0, vrot};
 	}
@@ -568,7 +564,7 @@ SpecificWorker::RetVal SpecificWorker::orient_to_door_p(const RoboCompLidar3D::T
 // 	return {State::CROSS_DOOR, 1000.0, 0.0};
 // }
 
-SpecificWorker::RetVal SpecificWorker::cross_door_p(const RoboCompLidar3D::TPoints &points)
+SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints &points)
 {
 	static bool first_time = true;
 	static std::chrono::time_point<std::chrono::system_clock> start;
