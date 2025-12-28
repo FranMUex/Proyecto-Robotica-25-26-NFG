@@ -52,6 +52,11 @@
 #include "image_processor.h"
 #include "pointcloud_center_estimator.h"
 #include "door_crossing_tracker.h"
+#include <vector>
+#include <cppitertools/groupby.hpp>
+#include <cppitertools/range.hpp>
+#include <time.h>
+#include <cppitertools/enumerate.hpp>
 
 /**
  * \brief Class SpecificWorker implements the core functionality of the component.
@@ -232,7 +237,7 @@ class SpecificWorker final : public GenericWorker
     void set_speeds(float vert, float adv, float rot);
 
     void localise(RoboCompLidar3D::TPoints filter_data);
-    float get_loc_error(RoboCompLidar3D::TPoints filter_data);
+    float show_loc_error(RoboCompLidar3D::TPoints filter_data);
 
 
 signals:

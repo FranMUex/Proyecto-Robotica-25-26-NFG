@@ -17,11 +17,7 @@
  *    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "specificworker.h"
-#include <vector>
-#include <cppitertools/groupby.hpp>
-#include <cppitertools/range.hpp>
-#include <time.h>
-#include <cppitertools/enumerate.hpp>
+
 
 SpecificWorker::SpecificWorker(const ConfigLoader& configLoader, TuplePrx tprx, bool startup_check) : GenericWorker(configLoader, tprx)
 {
@@ -35,22 +31,7 @@ SpecificWorker::SpecificWorker(const ConfigLoader& configLoader, TuplePrx tprx, 
 		#ifdef HIBERNATION_ENABLED
 			hibernationChecker.start(500);
 		#endif
-		
-		// Example statemachine:
-		/***
-		//Your definition for the statesmachine (if you dont want use a execute function, use nullptr)
-		states["CustomState"] = std::make_unique<GRAFCETStep>("CustomState", period, 
-															std::bind(&SpecificWorker::customLoop, this),  // Cyclic function
-															std::bind(&SpecificWorker::customEnter, this), // On-enter function
-															std::bind(&SpecificWorker::customExit, this)); // On-exit function
 
-		//Add your definition of transitions (addTransition(originOfSignal, signal, dstState))
-		states["CustomState"]->addTransition(states["CustomState"].get(), SIGNAL(entered()), states["OtherState"].get());
-		states["Compute"]->addTransition(this, SIGNAL(customSignal()), states["CustomState"].get()); //Define your signal in the .h file under the "Signals" section.
-
-		//Add your custom state
-		statemachine.addState(states["CustomState"].get());
-		***/
 
 		statemachine.setChildMode(QState::ExclusiveStates);
 		statemachine.start();
@@ -146,7 +127,17 @@ void SpecificWorker::compute()
     draw_lidar(data, &viewer->scene);
 
 	if(localised) localise(data);
-	get_loc_error(data);
+	show_loc_error(data);
+
+	auto centro = center_estimator.estimate(data);
+
+	if (centro)
+	{
+		static QGraphicsEllipseItem *item = nullptr;
+		if (item != nullptr) delete item;
+		item = viewer->scene.addEllipse(-100, 100, 200, 200, QPen(Qt::red, 3), QBrush(Qt::red, Qt::SolidPattern));
+		item->setPos(centro->x(), centro->y());
+	}
 
 	auto [corners, lines] = room_detector.compute_corners(data, &viewer->scene);
 
@@ -236,7 +227,7 @@ bool SpecificWorker::update_robot_pose(const Corners &corners, const Match &matc
 	return true;
 }
 
-float SpecificWorker::get_loc_error(RoboCompLidar3D::TPoints filter_data)
+float SpecificWorker::show_loc_error(RoboCompLidar3D::TPoints filter_data)
 {
 	const auto &[m_corners, lines] = room_detector.compute_corners(filter_data, &viewer->scene);
 	Corners m_room_corners = nominal_rooms[habitacion].transform_corners_to(robot_pose.inverse());
@@ -326,11 +317,6 @@ SpecificWorker::RetVal SpecificWorker::goto_room_center(const RoboCompLidar3D::T
 
 	if (!centro)
 		return {State::GOTO_ROOM_CENTER, 1.0, 0.0};
-
-	static QGraphicsEllipseItem *item = nullptr;
-	if (item != nullptr) delete item;
-	item = viewer->scene.addEllipse(-100, 100, 200, 200, QPen(Qt::red, 3), QBrush(Qt::red, Qt::SolidPattern));
-	item->setPos(centro->x(), centro->y());
 
 	float k = 1.0f;
 	auto angulo = atan2(centro->x(), centro->y());
@@ -435,7 +421,7 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints 
     if ( doors = door_detector.doors(); doors.empty())
     {
         qInfo() << __FUNCTION__ << "No doors detected, switching to UPDATE_POSE";
-        return {State::GOTO_DOOR, 0.f, 0.f};  // TODO: keep moving for a while?
+        return {State::GOTO_DOOR, 0.f, 0.f};
     }
     // select from doors, the one closest to the nominal door
     Door *target_door = nullptr;
@@ -480,102 +466,38 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints 
 
 SpecificWorker::RetVal SpecificWorker::orient_to_door(const RoboCompLidar3D::TPoints &points)
 {
-	// data
 	const auto doors = door_detector.doors();
-	if (localised)
+
+	const auto sd = std::ranges::min_element(doors, [](const auto &a, const auto &b)
+		   {  return std::fabs(a.center_angle()) < std::fabs(b.center_angle());} );
+
+	auto centro = sd->center();
+
+	float k = 0.5f;
+	auto angulo = atan2(centro.x(), centro.y());
+
+	if (abs(angulo) < 0.01)
 	{
-		const auto dn = nominal_rooms[habitacion].doors[current_door];
-		const auto sd = std::ranges::min_element(doors, [dn, this](const auto &a, const auto &b)
-			{  return (a.center() - robot_pose.inverse().cast<float>() * dn.center_global()).norm() <
-					  (b.center() - robot_pose.inverse().cast<float>() * dn.center_global()).norm(); });
-		//qInfo() << __FUNCTION__ << "Localized, selecting door closest to nominal door" << sd->center_angle() << params.RELOCAL_MAX_ORIENTED_ERROR << doors.size();
-		auto centro = sd->center();
-
-		float k = 1.0f;
-		auto angulo = atan2(centro.x(), centro.y());
-
-		if (abs(angulo) < 0.1)
-		{
-			localised = false;
-			return {State::CROSS_DOOR, 0.0, 0.0};
-		}
-		//
-		float vrot = k * angulo;
-
-		return {State::ORIENT_TO_DOOR, 0.0, vrot};
+		localised = false;
+		return {State::CROSS_DOOR, 0.5, 0.0};
 	}
 
-	else  // select the one closest to the robot's heading direction
-	{
-		qInfo() << __FUNCTION__ << "Not localised, selecting door closest to robot heading";
-		const auto sd = std::ranges::min_element(doors, [](const auto &a, const auto &b)
-			   {  return std::fabs(a.center_angle()) < std::fabs(b.center_angle());} );
+	float vrot = k * angulo;
 
-		auto centro = sd->center();
-
-		float k = 1.0f;
-		auto angulo = atan2(centro.x(), centro.y());
-
-		if (abs(angulo) < 0.01)
-		{
-			localised = false;
-			return {State::CROSS_DOOR, 0.5, 0.0};
-		}
-
-		float vrot = k * angulo;
-
-		return {State::ORIENT_TO_DOOR, 0.0, vrot};
-	}
+	return {State::ORIENT_TO_DOOR, 0.0, vrot};
 }
-
-
-// SpecificWorker::RetVal SpecificWorker::cross_door (const RoboCompLidar3D::TPoints& puntos)
-// {
-//
-// 	static std::chrono::time_point<std::chrono::steady_clock> start_time;
-//
-// 	if (cross_start)
-// 	{
-// 		start_time = std::chrono::steady_clock::now();
-// 		cross_start = false;
-// 	}
-//
-// 	auto duration = std::chrono::milliseconds(2000);
-//
-// 	auto end_time = start_time + duration;
-//
-// 	if (std::chrono::steady_clock::now() >= end_time)
-// 	{
-// 		nominal_rooms[habitacion].doors[current_door].visited = true;
-// 		habitacion = !habitacion;
-// 		const auto sd = std::ranges::min_element(nominal_rooms[habitacion].doors, [this](const auto &a, const auto &b)
-// 	   {
-// 			return a.center().norm() < b.center().norm();
-// 	   });
-//
-// 		viewer_room->scene.removeItem(room_draw);
-// 		delete room_draw;
-// 		room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
-// 		lcdNumber_room->display(habitacion);
-// 		cross_start = true;
-// 		return {State::GOTO_ROOM_CENTER, 0.0, 0.0};
-// 	}
-//
-// 	return {State::CROSS_DOOR, 1000.0, 0.0};
-// }
 
 SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints &points)
 {
 	static bool first_time = true;
 	static std::chrono::time_point<std::chrono::system_clock> start;
 
-
 	// Exit condition: the robot has advanced 1000 or equivalently 2 seconds at 500 mm/s
 	if (first_time)
 	{
 		first_time = false;
 		start = std::chrono::high_resolution_clock::now();
-		return {State::CROSS_DOOR, 500.0f, 0.0f};
+		return {State::CROSS_DOOR, 1000.0f, 0.0f};
 	}
 	else
 	{
@@ -586,10 +508,8 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 		{
 			first_time = true;
 			const auto &leaving_door = nominal_rooms[habitacion].doors[current_door];
-			int next_room_idx = leaving_door.connects_to_room;
-
-			// Update indices to the new room
-			int next_door_idx = leaving_door.connects_to_door;
+			// // Update indices to the new room
+			// int next_door_idx = leaving_door.connects_to_door;
 			//habitacion = next_room_idx;
 			habitacion = !habitacion;
 			viewer_room->scene.removeItem(room_draw);
@@ -621,12 +541,13 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 			localised = true;
 			// Continue navigation in the new room
 			door_crossing.track_entering_door(door_detector.doors());
+			// door_crossing.set_entering_data(door_crossing.leaving_room_index, nominal_rooms);
 
 			return {State::GOTO_ROOM_CENTER, 0.f, 0.f};
 
 		}
 		else // keep crossing
-			return {State::CROSS_DOOR, 500.f, 0.f};
+			return {State::CROSS_DOOR, 1000.f, 0.f};
 	}
 }
 
@@ -834,47 +755,5 @@ int SpecificWorker::startup_check()
 }
 
 //UBSCRIPTION to sendData method from JoystickAdapter interface
-void SpecificWorker::JoystickAdapter_sendData(RoboCompJoystickAdapter::TData data)
-{
-	//subscribesToCODE
-
-}
-
-/**************************************/
-// From the RoboCompCamera360RGB you can call this methods:
-// RoboCompCamera360RGB::TImage this->camera360rgb_proxy->getROI(int cx, int cy, int sx, int sy, int roiwidth, int roiheight)
-
-/**************************************/
-// From the RoboCompCamera360RGB you can use this types:
-// RoboCompCamera360RGB::TRoi
-// RoboCompCamera360RGB::TImage
-
-/**************************************/
-
-
-/**************************************/
-// From the RoboCompDifferentialRobot you can call this methods:
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->correctOdometer(int x, int z, float alpha)
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->getBasePose(int x, int z, float alpha)
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->getBaseState(RoboCompGenericBase::TBaseState state)
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->resetOdometer()
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->setOdometer(RoboCompGenericBase::TBaseState state)
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->setOdometerPose(int x, int z, float alpha)
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->setSpeedBase(float adv, float rot)
-// RoboCompDifferentialRobot::void this->differentialrobot_proxy->stopBase()
-
-/**************************************/
-// From the RoboCompDifferentialRobot you can use this types:
-// RoboCompDifferentialRobot::TMechParams
-
-/**************************************/
-// From the RoboCompLaser you can call this methods:
-// RoboCompLaser::TLaserData this->laser_proxy->getLaserAndBStateData(RoboCompGenericBase::TBaseState bState)
-// RoboCompLaser::LaserConfData this->laser_proxy->getLaserConfData()
-// RoboCompLaser::TLaserData this->laser_proxy->getLaserData()
-
-/**************************************/
-// From the RoboCompLaser you can use this types:
-// RoboCompLaser::LaserConfData
-// RoboCompLaser::TData
+void SpecificWorker::JoystickAdapter_sendData(RoboCompJoystickAdapter::TData data){}
 
