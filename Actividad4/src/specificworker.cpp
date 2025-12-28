@@ -366,6 +366,7 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(const Corners &corners)
         update_robot_pose(corners, m);
 
         ///////////////////////////////////////////////////////////////////////
+
         // save doors to nominal_room
         auto doors = door_detector.doors();
         if (doors.empty()) { qWarning() << __FUNCTION__ << "empty doors"; return{State::TURN, 0.0f, left_right*params.RELOCAL_ROT_SPEED};}
@@ -376,7 +377,15 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(const Corners &corners)
         }
         nominal_rooms[habitacion].doors = doors;
         // choose door to go
-        current_door = 0; // TODO: more sophisticated choice
+
+    	for (int i = 0; i < nominal_rooms[habitacion].doors.size(); i++)
+    	{
+    		if (i != door_crossing.leaving_door_index)
+    		{
+    			current_door = i;
+    			break;
+    		}
+    	}
         // we need to match the current selected nominal door to the successive local doors detected during the approach
         // select the local door closest to the selected nominal door
         const auto dn = nominal_rooms[habitacion].doors[current_door];
@@ -420,7 +429,7 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints 
     // Exit conditions
     if ( doors = door_detector.doors(); doors.empty())
     {
-        qInfo() << __FUNCTION__ << "No doors detected, switching to UPDATE_POSE";
+        qInfo() << __FUNCTION__ << "No doors detected";
         return {State::GOTO_DOOR, 0.f, 0.f};
     }
     // select from doors, the one closest to the nominal door
@@ -540,7 +549,7 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 
 			localised = true;
 			// Continue navigation in the new room
-			door_crossing.track_entering_door(door_detector.doors());
+			// door_crossing.track_entering_door(door_detector.doors());
 			// door_crossing.set_entering_data(door_crossing.leaving_room_index, nominal_rooms);
 
 			return {State::GOTO_ROOM_CENTER, 0.f, 0.f};

@@ -83,20 +83,9 @@ class SpecificWorker final : public GenericWorker
         int startup_check();
 
     private:
-        bool startup_check_flag;
-    bool fol_wall = false;
-    bool derecha = false;
 
-    float spir_rot = 0.6;
-    float spir_speed = 1000.0;
-
-    bool cross_start = true;
-
-    QRectF dimensions;
-    const int ROBOT_LENGTH = 400;
-    QGraphicsPolygonItem *robot_polygon;
-
-    struct Params
+        // params
+        struct Params
         {
             float ROBOT_WIDTH = 460;  // mm
             float ROBOT_LENGTH = 480;  // mm
@@ -131,113 +120,103 @@ class SpecificWorker final : public GenericWorker
             float RELOCAL_DONE_MATCH_MAX_ERROR = 850.f;
         };
         Params params;
-
-        // viewer
-        AbstractGraphicViewer *viewer, *viewer_room;
-        QGraphicsPolygonItem *robot_draw, *robot_room_draw;
-        DoorCrossing door_crossing;
-
-        // robot
-        Eigen::Affine2d robot_pose;
-
-        // rooms
-        std::vector<NominalRoom> nominal_rooms{ NominalRoom{5500.f, 4000.f}, NominalRoom{8000.f, 4000.f}};
-        int habitacion = 0;
-        int current_door = 0;
-        QGraphicsRectItem* room_draw;
-        rc::Room_Detector room_detector;
-        rc::Hungarian hungarian;
+        const int ROBOT_LENGTH = 400;
 
         // state machine
         enum class State
         {
-            GOTO_DOOR, ORIENT_TO_DOOR, ORIENT_TO_ROOM, LOCALISE, GOTO_ROOM_CENTER, TURN, IDLE, CROSS_DOOR,
-            FORWARD, FOLLOW_WALL, SPIRAL
+            IDLE,
+            GOTO_DOOR,
+            ORIENT_TO_DOOR,
+            LOCALISE,
+            GOTO_ROOM_CENTER,
+            TURN,
+            CROSS_DOOR,
+            FORWARD,
+            FOLLOW_WALL,
+            SPIRAL
         };
 
-         inline const char* to_string(const State s) const
+        inline const char* to_string(const State s) const
         {
             switch(s) {
-                case State::IDLE:               return "IDLE";
-                case State::LOCALISE:           return "LOCALISE";
-                case State::GOTO_DOOR:          return "GOTO_DOOR";
-                case State::TURN:               return "TURN";
-                case State::ORIENT_TO_DOOR:     return "ORIENT_TO_DOOR";
-                case State::ORIENT_TO_ROOM:     return "ORIENT_TO_ROOM";
-                case State::GOTO_ROOM_CENTER:   return "GOTO_ROOM_CENTER";
-                case State::CROSS_DOOR:         return "CROSS_DOOR";
-                default:                        return "UNKNOWN";
+            case State::IDLE:               return "IDLE";
+            case State::LOCALISE:           return "LOCALISE";
+            case State::GOTO_DOOR:          return "GOTO_DOOR";
+            case State::TURN:               return "TURN";
+            case State::ORIENT_TO_DOOR:     return "ORIENT_TO_DOOR";
+            case State::GOTO_ROOM_CENTER:   return "GOTO_ROOM_CENTER";
+            case State::CROSS_DOOR:         return "CROSS_DOOR";
+            case State::FORWARD:            return "FORWARD";
+            case State::FOLLOW_WALL:        return "FOLLOW_WALL";
+            case State::SPIRAL:             return "SPIRAL";
+
+            default:                        return "UNKNOWN";
             }
         }
         State state_global = State::GOTO_ROOM_CENTER;
+
         using RetVal = std::tuple<State, float, float>;
 
-        // draw
-        void draw_lidar(const RoboCompLidar3D::TPoints &filtered_points, std::optional<Eigen::Vector2d> center, QGraphicsScene *scene);
+        void localise(RoboCompLidar3D::TPoints filter_data);
+        bool update_robot_pose(const Corners &corners, const Match &match);
+        float show_loc_error(RoboCompLidar3D::TPoints filter_data);
 
-        // aux
-        RoboCompLidar3D::TPoints read_data();
-        std::expected<int, std::string> closest_lidar_index_to_given_angle(const auto &points, float angle);
-        RoboCompLidar3D::TPoints filter_same_phi(const RoboCompLidar3D::TPoints &points);
-        RoboCompLidar3D::TPoints filter_isolated_points(const RoboCompLidar3D::TPoints &points, float d);
-        void print_match(const Match &match, const float error =1.f) const;
+        RetVal state_machine(RoboCompLidar3D::TPoints puntos, State state);
+        RetVal state_machine_navigator(RoboCompLidar3D::TPoints filter_data, State state, Corners corners, Lines lines);
+        RetVal turn_to_color(const Corners &corners);
+        RetVal goto_room_center(const RoboCompLidar3D::TPoints& points);
+        RetVal goto_door(const RoboCompLidar3D::TPoints &points);
+        RetVal orient_to_door (const RoboCompLidar3D::TPoints& points);
+        RetVal cross_door (const RoboCompLidar3D::TPoints& puntos);
+        bool localised = false;
+        bool cross_start = true;
+        int habitacion = 0;
+        int current_door = 0;
 
-        // random number generator
-        std::random_device rd;
+        RetVal fwd(RoboCompLidar3D::TPoints puntos);
+        RetVal turn(RoboCompLidar3D::TPoints puntos);
+        RetVal wall(RoboCompLidar3D::TPoints puntos);
+        RetVal spiral(RoboCompLidar3D::TPoints puntos);
+        bool fol_wall = false;
+        bool derecha = false;
+        float spir_rot = 0.6;
+        float spir_speed = 1000.0;
 
-        // DoubleBuffer for velocity commands
-        DoubleBuffer<std::tuple<float, float, float, long>, std::tuple<float, float, float, long>> commands_buffer;
-        std::tuple<float, float, float, long> last_velocities{0.f, 0.f, 0.f, 0.f};
+        void set_speeds(float vert, float adv, float rot);
 
-        // plotter
+        // viewer and plotter
+        AbstractGraphicViewer *viewer, *viewer_room;
+        QGraphicsPolygonItem *robot_draw, *robot_room_draw;
+        QGraphicsRectItem* room_draw;
+        QRectF dimensions;
+        QGraphicsPolygonItem *robot_polygon;
         std::unique_ptr<TimeSeriesPlotter> time_series_plotter;
         int match_error_graph; // To store the index of the speed graph
+        void draw_lidar(const auto &points, QGraphicsScene* scene);
 
-        // doors
+        // locations
+        Eigen::Affine2d robot_pose;
+        std::vector<NominalRoom> nominal_rooms{ NominalRoom{5500.f, 4000.f}, NominalRoom{8000.f, 4000.f}};
+
+        // tools
+        rc::Room_Detector room_detector;
+        rc::Hungarian hungarian;
+        DoorCrossing door_crossing;
         DoorDetector door_detector;
-
-        // image processor
         rc::ImageProcessor image_processor;
 
         // timing
         std::chrono::time_point<std::chrono::high_resolution_clock> last_time = std::chrono::high_resolution_clock::now();
         rc::PointcloudCenterEstimator center_estimator;
 
-        // relocalization
-        bool relocal_centered = false;
-        bool localised = false;
+        // filters
+        RoboCompLidar3D::TPoints get_filtered_lidar_data();
+        RoboCompLidar3D::TPoints filter_min_distance(RoboCompLidar3D::TPoints points);
+        RoboCompLidar3D::TPoints filter_ahead(RoboCompLidar3D::TPoints points,int lado);//0 adelante, 1 drcha, 2 izq
 
-        bool update_robot_pose(const Corners &corners, const Match &match);
-        void move_robot(float adv, float rot, float max_match_error);
-        Eigen::Vector3d solve_pose(const Corners &corners, const Match &match);
-        void predict_robot_pose();
+        bool startup_check_flag;
 
-    RoboCompLidar3D::TPoints get_filtered_lidar_data();
-
-    void draw_lidar(const auto &points, QGraphicsScene* scene);
-
-    RoboCompLidar3D::TPoints filter_min_distance(RoboCompLidar3D::TPoints points);
-
-    RoboCompLidar3D::TPoints filter_ahead(RoboCompLidar3D::TPoints points,int lado);//0 adelante, 1 drcha, 2 izq
-
-    RetVal state_machine(RoboCompLidar3D::TPoints puntos, State state);
-    RetVal state_machine_navigator(RoboCompLidar3D::TPoints filter_data, State state, Corners corners, Lines lines);
-    RetVal turn_to_color(const Corners &corners);
-    RetVal goto_room_center(const RoboCompLidar3D::TPoints& points);
-    RetVal goto_door(const RoboCompLidar3D::TPoints &points);
-    RetVal orient_to_door (const RoboCompLidar3D::TPoints& points);
-    RetVal cross_door (const RoboCompLidar3D::TPoints& puntos);
-
-
-    RetVal fwd(RoboCompLidar3D::TPoints puntos);
-    RetVal turn(RoboCompLidar3D::TPoints puntos);
-    RetVal wall(RoboCompLidar3D::TPoints puntos);
-    RetVal spiral(RoboCompLidar3D::TPoints puntos);
-
-    void set_speeds(float vert, float adv, float rot);
-
-    void localise(RoboCompLidar3D::TPoints filter_data);
-    float show_loc_error(RoboCompLidar3D::TPoints filter_data);
 
 
 signals:
