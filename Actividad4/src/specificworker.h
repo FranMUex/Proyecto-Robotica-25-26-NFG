@@ -128,7 +128,6 @@ class SpecificWorker final : public GenericWorker
             IDLE,
             GOTO_DOOR,
             ORIENT_TO_DOOR,
-            LOCALISE,
             GOTO_ROOM_CENTER,
             TURN,
             CROSS_DOOR,
@@ -141,7 +140,6 @@ class SpecificWorker final : public GenericWorker
         {
             switch(s) {
             case State::IDLE:               return "IDLE";
-            case State::LOCALISE:           return "LOCALISE";
             case State::GOTO_DOOR:          return "GOTO_DOOR";
             case State::TURN:               return "TURN";
             case State::ORIENT_TO_DOOR:     return "ORIENT_TO_DOOR";

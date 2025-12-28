@@ -433,23 +433,8 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints 
         return {State::GOTO_DOOR, 0.f, 0.f};
     }
     // select from doors, the one closest to the nominal door
-    Door *target_door = nullptr;
-    if (localised)
-    {
-        qInfo() << __FUNCTION__ << "Localised, selecting door closest to nominal door";
-        const auto dn = nominal_rooms[habitacion].doors[current_door];
-        const auto sd = std::ranges::min_element(doors, [dn, this](const auto &a, const auto &b)
-               {  return (a.center() - robot_pose.inverse().cast<float>()  * dn.center_global()).norm() <
-                         (b.center() - robot_pose.inverse().cast<float>()  * dn.center_global()).norm(); });
-        target_door = &*sd;
-    }
-    else  // select the one closest to the robot's heading direction
-    {
-        qInfo() << __FUNCTION__ << "Not localised, selecting door closest to robot heading";
-        const auto sd = std::ranges::min_element(doors, [](const auto &a, const auto &b)
-               {  return abs(a.p1_angle) < abs(b.p1_angle); });
-        target_door = &*sd;
-    }
+    Door *target_door = &doors[current_door];
+
     qInfo() << target_door->p1.x() << target_door->p1.y();
 
 
@@ -549,7 +534,7 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 
 			localised = true;
 			// Continue navigation in the new room
-			// door_crossing.track_entering_door(door_detector.doors());
+			door_crossing.track_entering_door(door_detector.doors());
 			// door_crossing.set_entering_data(door_crossing.leaving_room_index, nominal_rooms);
 
 			return {State::GOTO_ROOM_CENTER, 0.f, 0.f};
