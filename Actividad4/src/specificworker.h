@@ -31,20 +31,21 @@
 // If you want to reduce the period automatically due to lack of use, you must uncomment the following line
 //#define HIBERNATION_ENABLED
 
-#include <genericworker.h>
-#include "abstract_graphic_viewer/abstract_graphic_viewer.h"
-#include <expected>
-#include <random>
-#include <doublebuffer/DoubleBuffer.h>
-#include "time_series_plotter.h"
 
 #ifdef emit
 #undef emit
 #endif
-#include <execution>
 #include <tuple>
-#include <utility>
+#include <time.h>
 #include <vector>
+#include <expected>
+#include <cppitertools/groupby.hpp>
+#include <cppitertools/range.hpp>
+#include <cppitertools/enumerate.hpp>
+#include <genericworker.h>
+
+#include "time_series_plotter.h"
+#include "abstract_graphic_viewer/abstract_graphic_viewer.h"
 #include "room_detector.h"
 #include "hungarian.h"
 #include "nominal_room.h"
@@ -52,11 +53,6 @@
 #include "image_processor.h"
 #include "pointcloud_center_estimator.h"
 #include "door_crossing_tracker.h"
-#include <vector>
-#include <cppitertools/groupby.hpp>
-#include <cppitertools/range.hpp>
-#include <time.h>
-#include <cppitertools/enumerate.hpp>
 
 /**
  * \brief Class SpecificWorker implements the core functionality of the component.

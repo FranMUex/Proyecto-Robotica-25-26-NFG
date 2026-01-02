@@ -498,7 +498,7 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 		const auto elapsed = std::chrono::high_resolution_clock::now() - start;
 		//qInfo() << __FUNCTION__ << "Elapsed time crossing door: "
 		//         << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms";
-		if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > 3000)
+		if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > 1800)
 		{
 			first_time = true;
 			const auto &leaving_door = nominal_rooms[habitacion].doors[current_door];
