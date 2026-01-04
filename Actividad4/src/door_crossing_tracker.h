@@ -4,6 +4,7 @@
 
 #ifndef LOCALISER_DOOR_CROSSING_TRACKER_H
 #define LOCALISER_DOOR_CROSSING_TRACKER_H
+#include "nominal_room.h"
 
 // Door crossing struct to track used door in crossing situations
 
