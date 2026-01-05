@@ -323,7 +323,7 @@ SpecificWorker::RetVal SpecificWorker::goto_room_center(const RoboCompLidar3D::T
 	float k = 1.0f;
 	auto angulo = atan2(centro->x(), centro->y());
 
-	float dist = centro.value().norm();
+	float dist = centro->norm();
 	if (dist < 100) return {State::TURN, 0.0, 0.0};
 
 	float vrot = k * angulo;
@@ -344,6 +344,7 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(const Corners &corners)
 		delete item;
 	}
 	g_items.clear();
+	door_crossing.track_entering_door(door_detector.doors());
 
     const auto &[success, room_index, left_right] = image_processor.check_colour_patch_in_image(camera360rgb_proxy, this->label_img);
 
@@ -391,9 +392,6 @@ SpecificWorker::RetVal SpecificWorker::turn_to_color(const Corners &corners)
     	}
 
         nominal_rooms[habitacion].doors = doors;
-        // choose door to go
-
-		door_crossing.track_entering_door(nominal_rooms[habitacion].doors);
 
 		door_crossing.set_entering_data(habitacion, nominal_rooms);
     	nominal_rooms[habitacion].doors[door_crossing.entering_door_index].connects_to_door = door_crossing.leaving_room_index;
@@ -418,7 +416,6 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints 
         qInfo() << __FUNCTION__ << "No doors detected";
         return {State::GOTO_DOOR, 0.f, 0.f};
     }
-    //qInfo() << __FUNCTION__ << "Localised, selecting door closest to nominal door";
     const auto dn = nominal_rooms[habitacion].doors[current_door];
     const auto sd = std::ranges::min_element(doors, [dn, this](const auto& a, const auto& b)
     {
@@ -426,9 +423,6 @@ SpecificWorker::RetVal SpecificWorker::goto_door(const RoboCompLidar3D::TPoints 
 		    (b.center() - robot_pose.inverse().cast<float>() * dn.center_global()).norm();
     });
     Door target_door = *sd;
-    // select from doors, the one closest to the nominal door
-
-    qInfo() << target_door.p1.x() << target_door.p1.y();
 
 	auto centro = target_door.center_before(Eigen::Vector2d(robot_pose.translation().x(), robot_pose.translation().y()));
 
@@ -473,7 +467,6 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 	static bool first_time = true;
 	static std::chrono::time_point<std::chrono::system_clock> start;
 
-	// Exit condition: the robot has advanced 1000 or equivalently 2 seconds at 500 mm/s
 	if (first_time)
 	{
 		first_time = false;
@@ -483,24 +476,16 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 	else
 	{
 		const auto elapsed = std::chrono::high_resolution_clock::now() - start;
-		//qInfo() << __FUNCTION__ << "Elapsed time crossing door: "
-		//         << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms";
 		if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() > 1800)
 		{
 			first_time = true;
 			const auto &leaving_door = nominal_rooms[habitacion].doors[current_door];
-			// // Update indices to the new room
-			// int next_door_idx = leaving_door.connects_to_door;
-			//habitacion = next_room_idx;
 			habitacion = !habitacion;
 			viewer_room->scene.removeItem(room_draw);
 			delete room_draw;
 			room_draw = viewer_room->scene.addRect(nominal_rooms[habitacion].rect(), QPen(Qt::black, 30));
 			lcdNumber_room->display(habitacion);
-			//current_door = next_door_idx;
 
-
-			// Compute robot pose based on the door in the new room frame.
 			door_detector.detect(points);
 
 			nominal_rooms[habitacion].doors = door_detector.doors();
@@ -515,12 +500,10 @@ SpecificWorker::RetVal SpecificWorker::cross_door(const RoboCompLidar3D::TPoints
 				door_center.y() -= 500; // place robot 500 mm inside the room
 				robot_pose.translate(door_center.cast<double>());
 				robot_pose.rotate(0);
-				//qInfo() << __FUNCTION__ << "Robot localized in NEW room " << habitacion << " at door " << current_door;
 				std::cout << door_center.x() << " " << door_center.y() << " " << angle << std::endl;
 			}
 
 			localised = true;
-			// Continue navigation in the new room
 
 			return {State::GOTO_ROOM_CENTER, 0.f, 0.f};
 
@@ -547,7 +530,6 @@ std::tuple<SpecificWorker::State, float, float> SpecificWorker::fwd(RoboCompLida
 
 		return {State::TURN, 0.0, 0.0};
 	}
-
 
 	return{State::FORWARD, 1000.0, 0.0};
 }
@@ -578,9 +560,7 @@ std::tuple<SpecificWorker::State, float, float> SpecificWorker::turn(RoboCompLid
 		return {State::FORWARD, 0.0, 0.0};
 	case 2:
 		return {State::FOLLOW_WALL, 0.0, 0.0};
-
 	}
-
 }
 
 std::tuple<SpecificWorker::State, float, float> SpecificWorker::wall(RoboCompLidar3D::TPoints puntos)
